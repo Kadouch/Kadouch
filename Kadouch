@@ -1,0 +1,78 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+from numpy import sin, cos
+
+# Constants and setup
+G = 9.8  # Acceleration due to gravity (m/s^2)
+L1, L2, L1p, L2p = 1, 1, 1, 1  # Lengths of the pendulums (m)
+M1, M2, M1p, M2p = 2.0, 5.0, 2.0, 5.0  # Masses of the pendulums (kg)
+t_stop = 100  # Simulation time (s)
+dt = 0.01  # Time step (s)
+t = np.arange(0, t_stop, dt)
+
+# Initial conditions
+init_conditions = {
+    'th1': 180.0 + 0.001, 'w1': 0.0, 'th2': -10.0, 'w2': 0.0,
+    'th1p': 180.0, 'w1p': 0.0, 'th2p': -10.0, 'w2p': 0.0
+}
+state = np.radians([init_conditions[key] for key in ['th1', 'w1', 'th2', 'w2']])
+statep = np.radians([init_conditions[key] for key in ['th1p', 'w1p', 'th2p', 'w2p']])
+
+# Derivative function for the ODEs
+def derivs(t, state):
+    dydx = np.zeros_like(state)
+    delta = state[2] - state[0]
+    den1 = (M1 + M2) * L1 - M2 * L1 * cos(delta) * cos(delta)
+    den2 = (L2 / L1) * den1
+    dydx[0] = state[1]
+    dydx[1] = (M2 * L1 * state[1]**2 * sin(delta) * cos(delta) +
+               M2 * G * sin(state[2]) * cos(delta) +
+               M2 * L2 * state[3]**2 * sin(delta) -
+               (M1 + M2) * G * sin(state[0])) / den1
+    dydx[2] = state[3]
+    dydx[3] = (-M2 * L2 * state[3]**2 * sin(delta) * cos(delta) +
+               (M1 + M2) * G * sin(state[0]) * cos(delta) -
+               (M1 + M2) * L1 * state[1]**2 * sin(delta) -
+               (M1 + M2) * G * sin(state[2])) / den2
+    return dydx
+
+# Integration using Euler's method
+y, yp = np.empty((len(t), 4)), np.empty((len(t), 4))
+y[0], yp[0] = state, statep
+for i in range(1, len(t)):
+    y[i] = y[i-1] + derivs(t[i-1], y[i-1]) * dt
+    yp[i] = yp[i-1] + derivs(t[i-1], yp[i-1]) * dt
+
+# Calculating positions
+x1, y1 = L1 * sin(y[:, 0]), -L1 * cos(y[:, 0])
+x2, y2 = L2 * sin(y[:, 2]) + x1, -L2 * cos(y[:, 2]) + y1
+x1p, y1p = L1p * sin(yp[:, 0]), -L1p * cos(yp[:, 0])
+x2p, y2p = L2p * sin(yp[:, 2]) + x1p, -L2p * cos(yp[:, 2]) + y1p
+
+# Setting up the plot
+fig, ax = plt.subplots()
+ax.set_xlim([-L1 - L1p, L1 + L1p])
+ax.set_ylim([-L2 - L1p, L1p])
+ax.set_aspect('equal')
+ax.grid()
+lines = {
+    'line': ax.plot([], [], 'o-', lw=2)[0],
+    'trace': ax.plot([], [], '.-', lw=1, ms=2)[0],
+    'linep': ax.plot([], [], 'ro-', lw=2)[0],
+    'tracep': ax.plot([], [], 'r.-', lw=1, ms=2)[0]
+}
+time_text = ax.text(0.05, 0.9, '', transform=ax.transAxes)
+
+# Animation function
+def animate(i):
+    lines['line'].set_data([0, x1[i], x2[i]], [0, y1[i], y2[i]])
+    lines['trace'].set_data(x2[:i], y2[:i])
+    lines['linep'].set_data([0, x1p[i], x2p[i]], [0, y1p[i], y2p[i]])
+    lines['tracep'].set_data(x2p[:i], y2p[:i])
+    time_text.set_text('time = {:.1f}s'.format(i * dt))
+    return list(lines.values()) + [time_text]
+
+# Create and start the animation
+ani = animation.FuncAnimation(fig, animate, frames=len(t), interval=dt*1000, blit=True)
+plt.show()
